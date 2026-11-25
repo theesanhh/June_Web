@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.auth import router as admin_router
 from backend.database import ROOT, database_path, open_database
 
 logger = logging.getLogger('uvicorn.error')
@@ -26,6 +27,7 @@ def create_app(db_path: Path | None = None, dist_dir: Path | None = None) -> Fas
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        app.state.db_path = path
         app.state.engine = open_database(path)
         try:
             yield
@@ -49,6 +51,7 @@ def create_app(db_path: Path | None = None, dist_dir: Path | None = None) -> Fas
             logger.warning('SQLite readiness check failed (%s).', type(error).__name__)
         raise HTTPException(status_code=503, detail='Database chưa sẵn sàng.')
 
+    app.include_router(admin_router)
     if (dist / 'index.html').is_file():
         app.mount('/', StaticFiles(directory=dist, html=True), name='frontend')
 

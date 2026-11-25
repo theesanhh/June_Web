@@ -12,4 +12,4 @@ def database_path() -> Path:
 
 
 def open_database(path: Path) -> Engine:
-    return create_engine(URL.create('sqlite', database=str(path)))
+    return create_engine(URL.create('sqlite', database=str(path)), hide_parameters=True)

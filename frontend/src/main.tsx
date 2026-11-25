@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import AdminPanel from './AdminPanel'
 import './styles.css'
 
 type Connection =
@@ -69,8 +70,10 @@ function App() {
         </div>
       </header>
       <main>
-        <h1>Trạng thái hệ thống</h1>
-        <section className="panel" aria-label="Kết nối local">
+        <h1>Quản trị cửa hàng</h1>
+        <AdminPanel />
+        <section className="panel" aria-labelledby="system-title">
+          <h2 id="system-title">Trạng thái hệ thống</h2>
           <div role="status" className="status" data-state={statusColor}>
             <span className="dot" aria-hidden="true" />
             {status}
