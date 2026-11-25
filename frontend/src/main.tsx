@@ -2,8 +2,21 @@ import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
-type Health = { status: 'ok'; database: 'ready'; shop_name: string }
-type Connection = { state: 'checking' | 'unavailable' } | { state: 'ready'; shop: string }
+type Connection =
+  | { state: 'checking' | 'database-unavailable' | 'api-unavailable' }
+  | { state: 'ready'; shop: string }
+
+function readShopName(data: unknown): string {
+  if (
+    typeof data === 'object' && data !== null &&
+    'status' in data && data.status === 'ok' &&
+    'database' in data && data.database === 'ready' &&
+    'shop_name' in data && typeof data.shop_name === 'string'
+  ) {
+    return data.shop_name
+  }
+  throw new Error('Invalid readiness response')
+}
 
 function App() {
   const [connection, setConnection] = useState<Connection>({ state: 'checking' })
@@ -11,29 +24,41 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 5000)
+    let active = true
+
     async function checkHealth() {
       try {
         const response = await fetch('/api/health', { signal: controller.signal, cache: 'no-store' })
-        if (!response.ok) throw new Error('Readiness check failed')
-        const data: Health = await response.json()
-        if (data.status !== 'ok' || data.database !== 'ready' || typeof data.shop_name !== 'string') {
-          throw new Error('Invalid readiness response')
+        if (response.status === 503) {
+          if (active) setConnection({ state: 'database-unavailable' })
+          return
         }
-        if (!controller.signal.aborted) setConnection({ state: 'ready', shop: data.shop_name })
+        if (!response.ok) throw new Error('Readiness check failed')
+        const shop = readShopName(await response.json())
+        if (active) setConnection({ state: 'ready', shop })
       } catch {
-        if (!controller.signal.aborted) setConnection({ state: 'unavailable' })
+        if (active) setConnection({ state: 'api-unavailable' })
+      } finally {
+        window.clearTimeout(timeout)
       }
     }
 
     void checkHealth()
-    return () => controller.abort()
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
   }, [attempt])
 
   const status = {
     checking: 'Đang kiểm tra kết nối…',
     ready: 'Ứng dụng và cơ sở dữ liệu đã sẵn sàng.',
-    unavailable: 'Ứng dụng hoặc cơ sở dữ liệu chưa sẵn sàng.',
+    'database-unavailable': 'Cơ sở dữ liệu SQLite chưa sẵn sàng.',
+    'api-unavailable': 'Không thể kiểm tra trạng thái qua API. Hãy thử lại.',
   }[connection.state]
+  const statusColor = connection.state.endsWith('-unavailable') ? 'unavailable' : connection.state
 
   return (
     <>
@@ -46,7 +71,7 @@ function App() {
       <main>
         <h1>Trạng thái hệ thống</h1>
         <section className="panel" aria-label="Kết nối local">
-          <div role="status" className="status" data-state={connection.state}>
+          <div role="status" className="status" data-state={statusColor}>
             <span className="dot" aria-hidden="true" />
             {status}
           </div>
